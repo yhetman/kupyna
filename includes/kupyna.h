@@ -25,7 +25,7 @@ typedef struct 		s_kupyna
 	char			standart_name[10];
 	size_t 			block;
 	size_t 			block_bytes;
-	size_t 			uint64_bytesize;
+	size_t 			double_block;
 	size_t 			diggest;
 	size_t 			rounds;
 	size_t 			state;
@@ -39,13 +39,95 @@ typedef enum 		e_kupyna
 	kupyna512
 }					t_kupyna_enum;
 
-t_kupyna			kupyna_configs[3] = {
-	{"kupyna256", 512,  64,  8,  32, 10, 8 , 8 },
-	{"kupyna384", 1024, 128, 16, 48, 14, 16, 8 },
-	{"kupyna512", 1024, 128, 16, 64, 14, 16, 8 }
-};
+extern const unsigned char s_box[4][16][16];
+extern uint8_t mix_columns_matrix[8][8];
 
+# define ROWS 8
 
 # define UINT64_TBYTES sizeof(uint64_t)
+
+# define HIGH(x)	(LOW(x) >> 4)
+
+# define LOW(x)		(x & 0xF0)
+
+# define XOR(x, y) (x^y)
+
+# define XOR_ARR(x, y, z, rows) {				\
+	for(size_t i = 0; i < rows; i++)			\
+		{(x)[i] = XOR((y)[i], (z)[i]);}}
+
+
+# define XOR_KEY(state, round, rows) {			\
+	for(size_t i = 0; i < rows; i++)			\
+		{((unsigned char *)&(state)[i])[0] = 	\
+			XOR((i << 4), round);}}
+
+
+# define XOR_MULTIPLE(x, y ,z, t ,rows) {		\
+	for(size_t i = 0; i < rows; i++)			\
+	{(x)[i] = (y)[i] ^ (z)[i] ^ (t)[i];}}		\
+
+
+# define ADD_KEY(state, round, rows) {			\
+	for(size_t i = 0; i < rows; i++)			\
+		{state[i] += XOR(0x00F0F0F0F0F0F0F3, 	\
+			((rows - i - 1) << 4));}}
+
+
+# define MACROS_SET(s, i, k) {					\
+	((unsigned char *)&s[k])[i] = 				\
+	((unsigned char *)&s[k - 1])[i];}
+
+
+# define SHIFT_ROWS_SUBBLOCK(shift, s, rows) {	\
+	for (int j = 0; j < (int)shift; j++) {		\
+        unsigned char tmp = 					\
+        ((unsigned char *)&s[rows - 1])[i];		\
+        for (int k = rows - 1; k > 0; k--)		\
+        {    	MACROS_SET(s, i, k)}			\
+        ((unsigned char *)&s[0])[i] = tmp;}}
+
+
+
+# define SUB_BYTES(state, rows) {				\
+	for(size_t i = 0; i < rows; i++)			\
+		{ unsigned char * tmp = 				\
+			(unsigned char *)&state[i];			\
+        for (size_t j= 0; j < ROWS; j++)		\
+            tmp[j] = 							\
+        s_box[j% 4][HIGH(tmp[j])][LOW(tmp[j])];	\
+    }}
+
+
+# define T_XOR(state, rounds, rows){			\
+		for(size_t j = 0; j < rows; j++)		\
+		{	XOR_KEY(state, j, rows)				\
+			SUB_BYTES(state, rows) 				\
+			shift_rows(state, rows);			\
+			mix_columns(state, 					\
+				mix_columns_matrix, rows);}}
+
+
+# define T_ADD(state, rounds, rows){			\
+		for(size_t j = 0; j < rows; j++)		\
+		{	ADD_KEY(state, j, rows)				\
+			SUB_BYTES(state, rows)				\
+			shift_rows(state, rows); 			\
+			mix_columns(state, 					\
+				mix_columns_matrix, rows);}}
+
+
+
+void		kupyna_hash(t_kupyna *kupyna, 		\
+			uint64_t * message, size_t size,	\
+			uint64_t * output);
+
+
+void		shift_rows(uint64_t * state,		\
+			size_t rows);
+
+
+void		mix_columns(uint64_t *state, 		\
+			uint8_t matrix[8][8], size_t rows);
 
 #endif

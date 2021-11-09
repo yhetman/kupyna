@@ -12,13 +12,16 @@
 
 #include "kupyna.h"
 
+extern t_kupyna  kupyna_configs[3];
+
+
 static int
 get_flags(int argc, char ** argv, FILE **input, \
 	size_t * filesize, int * zero, t_kupyna_enum  *version)
 {
     int 	flag;
 
-    while ((flag = getopt(argc, argv, "i:s:p:ch")) != -1)
+    while ((flag = getopt(argc, argv, "i:s:p:h")) != -1)
         switch (flag)
         {
             case 'i':
@@ -41,9 +44,9 @@ get_flags(int argc, char ** argv, FILE **input, \
             case 'p':
                 *zero = atoi(optarg);
                 break;
-            case 'c':
+            // case 'c':
             	// find_collision(*version)
-            	break;
+            	// break;
             case 'h':
                 printf("Usage:  ./kupyna -i ./input/file/path [flags] \n\n\
 Flags:\n\
@@ -59,18 +62,20 @@ Flags:\n\
 
 
 static void
-add_zero_block(t_kupyna *kupyna, unsigned char * message, uint64_t size)
+add_zero_block(t_kupyna *kupyna, uint64_t * message, uint64_t size)
 {
-    size_t		zero_to_add,
-    			i;
-    
+    size_t			zero_to_add,
+    				i;
+    unsigned char	*m;
+
+    m = (unsigned char *)message;
     i = (size % kupyna->block) / 8;
     zero_to_add = kupyna->block / 8 - i - 12;
-    message[i] = 0x80;
-    memset(message + i + 1, 0, zero_to_add);
+    m[i] = 0x80;
+    memset(m + i + 1, 0, zero_to_add);
 
     for (i = 0; i < 12; i++)
-        *(message + kupyna->block_bytes - i - 1) =  (i < UINT64_TBYTES) ? \
+        *(m + kupyna->block_bytes - i - 1) =  (i < UINT64_TBYTES) ? \
     ((unsigned char *)&size)[i] : 0;
 }
 
@@ -81,7 +86,8 @@ main(int argc, char **argv)
 {
 	FILE            *input;
     size_t          filesize,
-                    blocks;
+                    blocks,
+                    read_blocks;
     int             zero = -1,
     				i;
     t_kupyna_enum   version = kupyna256;
@@ -95,22 +101,28 @@ main(int argc, char **argv)
         printf("Error! Wrong number of arguments, check -h flag.\n");
         exit(1);
     }
+
     if ((get_flags(argc, argv, &input, &filesize, &zero, &version) != 0))
     	return 1;
-
+    
     kupyna = &kupyna_configs[version];
-
+ 
     blocks = (filesize / kupyna->block_bytes + 3) * kupyna->block_bytes;
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char) * blocks);
-    writer = (unsigned char *)malloc(sizeof(unsigned char) * kupyna->diggest + 1);
+	
+	writer = (unsigned char *)malloc(sizeof(unsigned char) * kupyna->diggest + 1);
 
     if ((blocks = fread(buffer, sizeof(unsigned char), blocks, input)) != 0)
     {
-        add_zero_block(kupyna, (unsigned char *)(buffer + blocks), 8 * blocks);
+        read_blocks = blocks / kupyna->block_bytes + 1;
 
+        add_zero_block(kupyna, (uint64_t *)(buffer + blocks), 8 * blocks);
+
+        if (zero == -1)
+            kupyna_hash(kupyna, (uint64_t *)buffer, read_blocks, (uint64_t *)writer); 
 		for (i = 0; i < (int)(kupyna->diggest/UINT64_TBYTES); i++)
-            if (printf("%16lx", ((uint64_t *)writer)[i]) == 0)
+            if (printf("%16lx\t", ((uint64_t *)writer)[i]) == 0)
             {
                 printf("Error occured while writting to the output.\n");
                 return -1;
