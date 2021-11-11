@@ -6,7 +6,7 @@
 /*   By: yhetman <yhetman@student.unit.ua>                                    */
 /*                                                                            */
 /*   Created: 2021/11/09 10:59:24 by yhetman                                  */
-/*   Updated: 2021/11/09 10:59:25 by yhetman                                  */
+/*   Updated: 2021/11/11 17:23:29 by yhetman                                  */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,21 @@
 # include <string.h>
 # include <unistd.h>
 # include <stdbool.h>
+# include <time.h>
+
+
+typedef struct  		s_8bytes
+{
+    uint64_t     		*bytes8;
+}               		t_8bytes; 
+
+
+typedef struct  		s_hashes
+{
+	char 				*generated_key;
+	t_8bytes			hash;
+	struct s_hashes 	*next_hash;
+}						t_hashes;
 
 typedef struct 		s_kupyna
 {
@@ -118,6 +133,10 @@ extern uint8_t mix_columns_matrix[8][8];
 
 
 
+void		add_zero_block(t_kupyna *kupyna, 	\
+			uint64_t * message, uint64_t size);
+
+
 void		kupyna_hash(t_kupyna *kupyna, 		\
 			uint64_t * message, size_t size,	\
 			uint64_t * output);
@@ -129,5 +148,10 @@ void		shift_rows(uint64_t * state,		\
 
 void		mix_columns(uint64_t *state, 		\
 			uint8_t matrix[8][8], size_t rows);
+
+
+void		count_execution_time(t_kupyna *k);
+
+void		find_collision(t_kupyna *kupyna);
 
 #endif

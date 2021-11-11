@@ -10,7 +10,7 @@
 #*                                                                            *#
 #* ************************************************************************** *#
 
-SRCS = const.c kupyna.c
+SRCS = const.c kupyna.c test_collision.c
 
 SRCS_DIR = src/
 

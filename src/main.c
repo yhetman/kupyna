@@ -6,7 +6,7 @@
 /*   By: yhetman <yhetman@student.unit.ua>                                    */
 /*                                                                            */
 /*   Created: 2021/11/09 10:57:22 by yhetman                                  */
-/*   Updated: 2021/11/09 10:57:23 by yhetman                                  */
+/*   Updated: 2021/11/11 17:23:46 by yhetman                                  */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,9 +17,10 @@ extern t_kupyna  kupyna_configs[3];
 
 static int
 get_flags(int argc, char ** argv, FILE **input, \
-	size_t * filesize, int * zero, t_kupyna_enum  *version)
+	size_t * filesize, bool *collision, t_kupyna_enum  *version)
 {
     int 	flag;
+    bool    ok = false; 
 
     while ((flag = getopt(argc, argv, "i:s:p:h")) != -1)
         switch (flag)
@@ -29,6 +30,7 @@ get_flags(int argc, char ** argv, FILE **input, \
                 fseek(*input, 0L, SEEK_END);
                 *filesize = ftell(*input);
                 fseek(*input, 0L, SEEK_SET);
+                ok = true;
                 break;
             case 's':
                 if (strcasecmp(optarg, "kupyna256") == 0)
@@ -41,27 +43,27 @@ get_flags(int argc, char ** argv, FILE **input, \
                     printf("%s wrong standart name, looks -h for supported standarts.\n", optarg);
                     return -1;
                 break;
-            case 'p':
-                *zero = atoi(optarg);
+            case 'c':
+                *collision = true;
+                ok = true;
                 break;
-            // case 'c':
-            	// find_collision(*version)
-            	// break;
             case 'h':
-                printf("Usage:  ./kupyna -i ./input/file/path [flags] \n\n\
+                printf("Usage:  ./kupyna -i ./input/file/path [flags] \n\
+                Usage to test for collision:  ./SHA256 -c\n\
 Flags:\n\
     -i  --  specify input file,\n\
     -s  --  standart name. Allowed options: kupyna256, kupyna384, kupyna512,\n\
-    -p  --  [size] - start proof of work process using size zero in hash result.\n\
     -c	--	start collision testing.\n\
     -h  --  display help message.\n");
                 return 1;
         }
+    if (!ok)
+        return 1;
     return 0;
 }
 
 
-static void
+void
 add_zero_block(t_kupyna *kupyna, uint64_t * message, uint64_t size)
 {
     size_t			zero_to_add,
@@ -88,8 +90,8 @@ main(int argc, char **argv)
     size_t          filesize,
                     blocks,
                     read_blocks;
-    int             zero = -1,
-    				i;
+    bool            collision = false;
+    int				i;
     t_kupyna_enum   version = kupyna256;
     t_kupyna        *kupyna;
     unsigned char 	*buffer,
@@ -102,25 +104,29 @@ main(int argc, char **argv)
         exit(1);
     }
 
-    if ((get_flags(argc, argv, &input, &filesize, &zero, &version) != 0))
+    if ((get_flags(argc, argv, &input, &filesize, &collision, &version) != 0))
     	return 1;
     
     kupyna = &kupyna_configs[version];
- 
+
+    if (collision)
+    {
+        find_collision(kupyna);
+        return 0;
+    }
+
     blocks = (filesize / kupyna->block_bytes + 3) * kupyna->block_bytes;
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char) * blocks);
 	
 	writer = (unsigned char *)malloc(sizeof(unsigned char) * kupyna->diggest + 1);
-
     if ((blocks = fread(buffer, sizeof(unsigned char), blocks, input)) != 0)
     {
         read_blocks = blocks / kupyna->block_bytes + 1;
 
         add_zero_block(kupyna, (uint64_t *)(buffer + blocks), 8 * blocks);
 
-        if (zero == -1)
-            kupyna_hash(kupyna, (uint64_t *)buffer, read_blocks, (uint64_t *)writer); 
+        kupyna_hash(kupyna, (uint64_t *)buffer, read_blocks, (uint64_t *)writer);
 		for (i = 0; i < (int)(kupyna->diggest/UINT64_TBYTES); i++)
             if (printf("%16lx\t", ((uint64_t *)writer)[i]) == 0)
             {
